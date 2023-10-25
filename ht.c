@@ -28,7 +28,7 @@ FreqKV *find_key(FreqKVs haystack, Nob_String_View needle)
     return NULL;
 }
 
-int compare_freqkv_count(const void *a, const void *b)
+int compare_freqkv_count_reversed(const void *a, const void *b)
 {
     const FreqKV *akv = a;
     const FreqKV *bkv = b;
@@ -70,7 +70,7 @@ void naive_analysis(Nob_String_View content, const char *file_path)
     double end = clock_get_secs();
 
     nob_log(NOB_INFO, "  Tokens: %zu tokens", freq.count);
-    qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count);
+    qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count_reversed);
 
     nob_log(NOB_INFO, "  Top 10 tokens");
     for (size_t i = 0; i < 10 && i < freq.count; ++i) {
@@ -141,11 +141,9 @@ bool hash_analysis(Nob_String_View content, const char *file_path)
             nob_da_append(&freq, ht.items[i]);
         }
     }
-    qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count);
+    qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count_reversed);
 
     nob_log(NOB_INFO, "  Tokens: %zu tokens", freq.count);
-    qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count);
-
     nob_log(NOB_INFO, "  Top 10 tokens");
     for (size_t i = 0; i < 10 && i < freq.count; ++i) {
         nob_log(NOB_INFO, "    %zu: "SV_Fmt" => %zu", i, SV_Arg(freq.items[i].key), freq.items[i].value);
