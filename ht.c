@@ -35,11 +35,12 @@ int compare_freqkv_count(const void *a, const void *b)
     return (int)bkv->value - (int)akv->value;
 }
 
-double delta_secs(struct timespec begin, struct timespec end)
+double clock_get_secs(void)
 {
-    double a = (double)begin.tv_sec + begin.tv_nsec*1e-9;
-    double b = (double)end.tv_sec + end.tv_nsec*1e-9;
-    return b - a;
+    struct timespec ts = {0};
+    int ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+    assert(ret == 0);
+    return (double)ts.tv_sec + ts.tv_nsec*1e-9;
 }
 
 void naive_analysis(Nob_String_View content, const char *file_path)
@@ -47,16 +48,14 @@ void naive_analysis(Nob_String_View content, const char *file_path)
     nob_log(NOB_INFO, "Analyzing %s linearly", file_path);
     nob_log(NOB_INFO, "  Size: %zu bytes", content.count);
 
-    struct timespec begin = {0};
-    int ret = clock_gettime(CLOCK_MONOTONIC, &begin);
-    assert(ret == 0);
+    double begin = clock_get_secs();
 
     FreqKVs freq = {0}; // TODO: a bit of memory leak
     size_t count = 0;
     for (; content.count > 0; ++count) {
         content = nob_sv_trim_left(content);
         Nob_String_View token = nob_sv_chop_by_space(&content);
-        
+
         FreqKV *kv = find_key(freq, token);
         if (kv) {
             kv->value += 1;
@@ -68,9 +67,7 @@ void naive_analysis(Nob_String_View content, const char *file_path)
         }
     }
 
-    struct timespec end = {0};
-    ret = clock_gettime(CLOCK_MONOTONIC, &end);
-    assert(ret == 0);
+    double end = clock_get_secs();
 
     nob_log(NOB_INFO, "  Tokens: %zu tokens", freq.count);
     qsort(freq.items, freq.count, sizeof(freq.items[0]), compare_freqkv_count);
@@ -79,7 +76,7 @@ void naive_analysis(Nob_String_View content, const char *file_path)
     for (size_t i = 0; i < 10 && i < freq.count; ++i) {
         nob_log(NOB_INFO, "    %zu: "SV_Fmt" => %zu", i, SV_Arg(freq.items[i].key), freq.items[i].value);
     }
-    nob_log(NOB_INFO, "  Elapsed time %.03lfs", delta_secs(begin, end));
+    nob_log(NOB_INFO, "  Elapsed time %.03lfs", end - begin);
 }
 
 uint32_t djb2(uint8_t *buf, size_t buf_size)
@@ -108,9 +105,7 @@ bool hash_analysis(Nob_String_View content, const char *file_path)
     nob_log(NOB_INFO, "Analyzing %s with Hash Table", file_path);
     nob_log(NOB_INFO, "  Size: %zu bytes", content.count);
 
-    struct timespec begin = {0};
-    int ret = clock_gettime(CLOCK_MONOTONIC, &begin);
-    assert(ret == 0);
+    double begin = clock_get_secs();
 
     FreqKVs ht = {0};
     hash_init(&ht, 1000*1000);
@@ -119,7 +114,7 @@ bool hash_analysis(Nob_String_View content, const char *file_path)
     for (; content.count > 0; ++count) {
         content = nob_sv_trim_left(content);
         Nob_String_View token = nob_sv_chop_by_space(&content);
-        
+
         uint32_t h = djb2((uint8_t*)token.data, token.count)%ht.capacity;
 
         for (size_t i = 0; i < ht.capacity && ht.items[h].occupied && !nob_sv_eq(ht.items[h].key, token); ++i) {
@@ -138,10 +133,7 @@ bool hash_analysis(Nob_String_View content, const char *file_path)
             ht.items[h].value = 1;
         }
     }
-    struct timespec end = {0};
-    ret = clock_gettime(CLOCK_MONOTONIC, &end);
-    assert(ret == 0);
-
+    double end = clock_get_secs();
 
     FreqKVs freq = {0};
     for (size_t i = 0; i < ht.capacity; ++i) {
@@ -158,7 +150,7 @@ bool hash_analysis(Nob_String_View content, const char *file_path)
     for (size_t i = 0; i < 10 && i < freq.count; ++i) {
         nob_log(NOB_INFO, "    %zu: "SV_Fmt" => %zu", i, SV_Arg(freq.items[i].key), freq.items[i].value);
     }
-    nob_log(NOB_INFO, "  Elapsed time %.03lfs", delta_secs(begin, end));
+    nob_log(NOB_INFO, "  Elapsed time %.03lfs", end - begin);
 
     return true;
 }
